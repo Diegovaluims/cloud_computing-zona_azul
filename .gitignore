@@ -1,0 +1,25 @@
+# Variáveis de Ambiente
+.env
+.env.*
+
+# Ambientes Virtuais
+venv/
+env/
+.venv/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE configs
+.vscode/
+.idea/
+*.swp
+
+# SO
+Thumbs.db
+.DS_Store
+
+# Logs (server)
+*.log
