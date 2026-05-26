@@ -3,10 +3,12 @@ import psycopg2
 from psycopg2 import Error
 from dotenv import load_dotenv
 
-load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
+# Credenciais
+load_dotenv(dotenv_path='./.env')
 
 def criar_tabelas():
-    # Agora buscamos as configurações de forma segura
+
+    # Configurações de conexão
     db_config = {
         'user': os.getenv('DB_USER'),
         'password': os.getenv('DB_PASSWORD'),
@@ -15,28 +17,25 @@ def criar_tabelas():
         'database': os.getenv('DB_NAME')
     }
 
+    # Conecta ao banco de dados e executa os comandos SQL
     try:
-        # 1. Conecta ao banco de dados
         conexao = psycopg2.connect(**db_config)
-        print(conexao)
         cursor = conexao.cursor()
-        print("Conexão com PostgreSQL bem-sucedida!")
 
-        # 2. Lê o arquivo SQL
-        with open('schema.sql', 'r') as arquivo_sql:
+        with open('./db/schema.sql', 'r') as arquivo_sql:
             comandos_sql = arquivo_sql.read()
 
-        # 3. Executa os comandos
+        # Executa os comandos
         cursor.execute(comandos_sql)
         
-        # 4. Confirma a transação (Commit)
+        # Confirma a transação (Commit)
         conexao.commit()
         print("Tabelas criadas com sucesso no banco de dados!")
 
     except Error as e:
         print(f"Erro ao conectar ou executar no PostgreSQL: {e}")
     finally:
-        if conexao:
+        if 'conexao' in locals() and conexao:
             cursor.close()
             conexao.close()
             print("Conexão encerrada.")

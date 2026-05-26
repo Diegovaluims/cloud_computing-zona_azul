@@ -30,3 +30,10 @@ CREATE TABLE IF NOT EXISTS reservas (
     hora_inicio TIMESTAMP NOT NULL,
     hora_fim TIMESTAMP NOT NULL
 );
+
+-- Tabela ponte entre o usuário e seus veículos salvos
+CREATE TABLE IF NOT EXISTS usuario_veiculo (
+    id_usuario INTEGER REFERENCES usuarios(id_usuario),
+    placa VARCHAR(7) REFERENCES veiculos(placa),
+    PRIMARY KEY (id_usuario, placa)
+);
