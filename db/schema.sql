@@ -1,10 +1,14 @@
+-- Recriando tabelas para zerar o estado
+DROP TABLE IF EXISTS usuario_veiculo, reservas, setores, veiculos, usuarios CASCADE;
+
 -- Tabela de Usuários
 CREATE TABLE IF NOT EXISTS usuarios (
     id_usuario SERIAL PRIMARY KEY,
     cpf VARCHAR(11) UNIQUE NOT NULL,
     nome VARCHAR(100) NOT NULL,
     email VARCHAR(100),
-    telefone VARCHAR(20)
+    telefone VARCHAR(20),
+    saldo NUMERIC(10,2) DEFAULT 0.00
 );
 
 -- Tabela de Veículos
@@ -28,7 +32,9 @@ CREATE TABLE IF NOT EXISTS reservas (
     id_veiculo INTEGER REFERENCES veiculos(id_veiculo),
     id_setor INTEGER REFERENCES setores(id_setor),
     hora_inicio TIMESTAMP NOT NULL,
-    hora_fim TIMESTAMP NOT NULL
+    hora_fim TIMESTAMP NOT NULL,
+    valor_pago NUMERIC(10,2),
+    status VARCHAR(20) DEFAULT 'ATIVA'
 );
 
 -- Tabela ponte entre o usuário e seus veículos salvos
