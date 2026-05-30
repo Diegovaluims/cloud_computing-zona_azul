@@ -27,6 +27,46 @@ Ambas as APIs foram desenvolvidas em Python utilizando o framework FastAPI, e co
 * **Infraestrutura:** Docker, Docker Compose
 * **Integração:** CORS configurado para futuro acoplamento de Frontend
 
+## Como Executar Localmente
+
+### Pré-requisitos
+* [Docker](https://www.docker.com/) instalado.
+* [Docker Compose](https://docs.docker.com/compose/) instalado.
+
+### Passo a Passo
+
+1. Clone o repositório:
+```bash
+git clone [https://github.com/SEU_USUARIO/cloud_computing-zona_azul.git](https://github.com/SEU_USUARIO/cloud_computing-zona_azul.git)
+cd cloud_computing-zona_azul
+```
+
+2. Construa e inicie a infraestrutura de microsserviços em segundo plano:
+```bash
+docker-compose up -d --build
+```
+
+3. Acesso às APIs:
+* Painel do Usuário: [http://localhost:8000/docs](http://localhost:8000/docs)
+* Painel do Fiscal: [http://localhost:8001/docs](http://localhost:8001/docs)
+
+---
+
+## Comandos Úteis
+
+* `docker-compose stop`
+* `docker-compose down` derruba os conteineres (arg -v para rebuildar o banco (em caso de troca de schema)).
+
+---
+
+## Próximos Passos
+
+- [x] Criação do Backend (APIs + Banco).
+- [x] Estabelecer arquitetura Docker e comunicação de redes.
+- [ ] Criação do Frontend.
+- [ ] IaC + AWS.
+
+    
 ## Estrutura de Diretórios
 
 ```text
@@ -44,3 +84,4 @@ cloud_computing-zona_azul/
     ├── main.py              # Rota GET simplificada para validação de placas
     ├── Dockerfile           # Receita de build do microsserviço
     └── requirements.txt
+```
