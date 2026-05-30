@@ -33,7 +33,7 @@ Ambas as APIs foram desenvolvidas em Python utilizando o framework FastAPI, e co
 cloud_computing-zona_azul/
 ├── docker-compose.yml       # Orquestrador global da infraestrutura
 ├── db/
-│   ├── schema.sql           # Script de inicialização ("osso puro") do banco
+│   ├── schema.sql           # Script de inicialização do banco
 │   ├── database_connect.py  # Módulo compartilhado de pool de conexões e resiliência
 │   └── __init__.py          # Exportador do pacote Python
 ├── backend_usuario/
