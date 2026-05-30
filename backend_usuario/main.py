@@ -1,12 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
-from backend_usuario.database import obter_conexao
+import database_connect
 
 # =====================================================================
 # 1. INICIALIZAÇÃO DA APLICAÇÃO FASTAPI
 # =====================================================================
-app = FastAPI(title="API Zona Azul - Rascunho Infraestrutura")
+app = FastAPI(title="API Zona Azul - Rascunho Infraestrutura Usuario")
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,7 +27,7 @@ def criar_usuario(
             "email": "joao@email.com"
         }
     ), 
-    conexao = Depends(obter_conexao)
+    conexao = Depends(database_connect.obter_conexao)
 ):
     cursor = conexao.cursor()
     try:
@@ -54,7 +53,7 @@ def criar_usuario(
 # Rota para listar usuários
 # =====================================================================
 @app.get("/usuarios")
-def listar_usuarios(conexao = Depends(obter_conexao)):
+def listar_usuarios(conexao = Depends(database_connect.obter_conexao)):
     cursor = conexao.cursor()
     try:
         cursor.execute("SELECT id_usuario, nome, email FROM usuarios;")
@@ -71,7 +70,7 @@ def listar_usuarios(conexao = Depends(obter_conexao)):
 # Rota para remover usuários
 # =====================================================================
 @app.delete("/usuarios/{id_usuario}")
-def remover_usuario(id_usuario: int, conexao = Depends(obter_conexao)):
+def remover_usuario(id_usuario: int, conexao = Depends(database_connect.obter_conexao)):
     cursor = conexao.cursor()
     try:
         # 1. Apaga as reservas vinculadas a esse usuário para evitar erro de Foreign Key
@@ -109,7 +108,7 @@ def adicionar_veiculo_na_garagem(
             "ano": 1978
         }
     ), 
-    conexao = Depends(obter_conexao)
+    conexao = Depends(database_connect.obter_conexao)
 ):
     cursor = conexao.cursor()
     try:
@@ -138,7 +137,7 @@ def adicionar_veiculo_na_garagem(
 # Rota para listar veículos
 # =====================================================================
 @app.get("/veiculos")
-def listar_veiculos(conexao = Depends(obter_conexao)):
+def listar_veiculos(conexao = Depends(database_connect.obter_conexao)):
     cursor = conexao.cursor()
     try:
         cursor.execute("SELECT id_veiculo, placa, modelo, ano FROM veiculos;")
@@ -162,7 +161,7 @@ def listar_veiculos(conexao = Depends(obter_conexao)):
 # Rota para listar veículos do usuário
 # =====================================================================
 @app.get("/usuarios/{id_usuario}/veiculos")
-def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(obter_conexao)):
+def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(database_connect.obter_conexao)):
     cursor = conexao.cursor()
     try:
         # Cruza as tabelas para pegar só os carros da garagem do usuário específico
@@ -198,7 +197,7 @@ def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(obter_conexao)
 # Rota para remover veículos
 # =====================================================================
 @app.delete("/veiculos/{id_veiculo}")
-def remover_veiculo(id_veiculo: int, conexao = Depends(obter_conexao)):
+def remover_veiculo(id_veiculo: int, conexao = Depends(database_connect.obter_conexao)):
     cursor = conexao.cursor()
     try:
         # 1. Pegamos a placa do veículo, pois precisamos dela para limpar a tabela 'usuario_veiculo'
@@ -237,10 +236,9 @@ def comprar_reserva(
         example={
             "id_usuario": 1,
             "placa": "ABC-1234",
-            "id_setor": 5
         }
     ), 
-    conexao = Depends(obter_conexao)
+    conexao = Depends(database_connect.obter_conexao)
 ):
     cursor = conexao.cursor()
     try:
@@ -255,12 +253,10 @@ def comprar_reserva(
         if not resultado:
             raise HTTPException(status_code=404, detail="Veículo não encontrado na garagem.")
         id_veiculo = resultado[0]
-
-        # Registra a vaga direto, sem checar saldo
         cursor.execute("""
-            INSERT INTO reservas (id_usuario, id_veiculo, id_setor)
-            VALUES (%s, %s, %s) RETURNING id_reserva;
-        """, (reserva["id_usuario"], id_veiculo, reserva["id_setor"]))
+            INSERT INTO reservas (id_usuario, id_veiculo)
+            VALUES (%s, %s) RETURNING id_reserva;
+        """, (reserva["id_usuario"], id_veiculo))
         id_reserva = cursor.fetchone()[0]
 
         conexao.commit()
@@ -279,18 +275,17 @@ def comprar_reserva(
 # Rota para listar reservas
 # =====================================================================
 @app.get("/reservas")
-def listar_reservas(conexao = Depends(obter_conexao)):
+def listar_reservas(conexao = Depends(database_connect.obter_conexao)):
     cursor = conexao.cursor()
     try:
-        cursor.execute("SELECT id_reserva, id_usuario, id_veiculo, id_setor FROM reservas;")
+        cursor.execute("SELECT id_reserva, id_usuario, id_veiculo FROM reservas")
         reservas_bd = cursor.fetchall()
         
         return [
             {
                 "id_reserva": r[0], 
                 "id_usuario": r[1], 
-                "id_veiculo": r[2], 
-                "id_setor": r[3]
+                "id_veiculo": r[2]
             } for r in reservas_bd
         ]
     except Exception as e:
@@ -303,7 +298,7 @@ def listar_reservas(conexao = Depends(obter_conexao)):
 # Rota para remover reservas
 # =====================================================================
 @app.delete("/reservas/{id_reserva}")
-def remover_reserva(id_reserva: int, conexao = Depends(obter_conexao)):
+def remover_reserva(id_reserva: int, conexao = Depends(database_connect.obter_conexao)):
     cursor = conexao.cursor()
     try:
         cursor.execute("DELETE FROM reservas WHERE id_reserva = %s RETURNING id_reserva;", (id_reserva,))
