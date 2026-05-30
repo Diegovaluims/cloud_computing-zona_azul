@@ -1,22 +1,31 @@
+"""
+Backend do Usuário - Microsserviço de Gerenciamento
+
+Responsável pelo cadastro de usuários, veículos,
+vinculação usuário-veículo (garagem) e emissão de reservas de estacionamento.
+
+Porta padrão: 8000 | Documentação: http://localhost:8000/docs
+"""
 from fastapi import FastAPI, Depends, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 import database_connect
 
 # =====================================================================
-# 1. INICIALIZAÇÃO DA APLICAÇÃO FASTAPI
+# INICIALIZAÇÃO
 # =====================================================================
 app = FastAPI(title="API Zona Azul - Rascunho Infraestrutura Usuario")
 
+# CORS liberado para qualquer origem (*) — temporário, a ser restrito quando o Frontend for acoplado
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # =====================================================================
-# Rota para criar usuários #
+# Rota: criar usuário
 # =====================================================================
 @app.post("/usuarios", status_code=201)
 def criar_usuario(
@@ -29,6 +38,11 @@ def criar_usuario(
     ), 
     conexao = Depends(database_connect.obter_conexao)
 ):
+    """
+    Cria um novo usuário no sistema.
+    Parâmetros: nome (str), email (str).
+    Retorna: mensagem de sucesso e o id_usuario gerado pelo banco.
+    """
     cursor = conexao.cursor()
     try:
         cursor.execute("""
@@ -50,10 +64,13 @@ def criar_usuario(
         cursor.close()
 
 # =====================================================================
-# Rota para listar usuários
+# Rota: listar usuários
 # =====================================================================
 @app.get("/usuarios")
 def listar_usuarios(conexao = Depends(database_connect.obter_conexao)):
+    """
+    Retorna a lista completa de usuários cadastrados no sistema.
+    """
     cursor = conexao.cursor()
     try:
         cursor.execute("SELECT id_usuario, nome, email FROM usuarios;")
@@ -67,19 +84,20 @@ def listar_usuarios(conexao = Depends(database_connect.obter_conexao)):
         cursor.close()
 
 # =====================================================================
-# Rota para remover usuários
+# Rota: remover usuário
 # =====================================================================
 @app.delete("/usuarios/{id_usuario}")
 def remover_usuario(id_usuario: int, conexao = Depends(database_connect.obter_conexao)):
+    """
+    Remove um usuário e todos os seus vínculos do sistema.
+    A deleção respeita a ordem das constraints de Foreign Key:
+    reservas → vínculos de garagem (usuario_veiculo) → usuário.
+    """
     cursor = conexao.cursor()
     try:
-        # 1. Apaga as reservas vinculadas a esse usuário para evitar erro de Foreign Key
+        # ordem de deleção respeita as FKs: reservas → garagem → usuário
         cursor.execute("DELETE FROM reservas WHERE id_usuario = %s;", (id_usuario,))
-        
-        # 2. Apaga o vínculo da garagem do usuário
         cursor.execute("DELETE FROM usuario_veiculo WHERE id_usuario = %s;", (id_usuario,))
-        
-        # 3. Finalmente, apaga o próprio usuário
         cursor.execute("DELETE FROM usuarios WHERE id_usuario = %s RETURNING id_usuario;", (id_usuario,))
         
         if cursor.rowcount == 0:
@@ -95,7 +113,7 @@ def remover_usuario(id_usuario: int, conexao = Depends(database_connect.obter_co
         cursor.close()
 
 # =====================================================================
-# Rota para adicionar veículos na garagem do usuário 
+# Rota: adicionar veículo à garagem
 # =====================================================================
 @app.post("/usuarios/{id_usuario}/veiculos")
 def adicionar_veiculo_na_garagem(
@@ -110,9 +128,13 @@ def adicionar_veiculo_na_garagem(
     ), 
     conexao = Depends(database_connect.obter_conexao)
 ):
+    """
+    Cadastra um veículo e o vincula à garagem do usuário.
+    Parâmetros: placa (VARCHAR(50)), modelo (str), ano (int).
+    ON CONFLICT (placa) DO NOTHING — evita duplicatas se a placa já existir.
+    """
     cursor = conexao.cursor()
     try:
-        # Acessa os dados direto do JSON cru (ex: veiculo["placa"])
         cursor.execute(
             "INSERT INTO veiculos (placa, modelo, ano) VALUES (%s, %s, %s) ON CONFLICT (placa) DO NOTHING;", 
             (veiculo["placa"], veiculo["modelo"], veiculo["ano"])
@@ -124,7 +146,6 @@ def adicionar_veiculo_na_garagem(
         conexao.commit()
         return {"mensagem": f"Veículo {veiculo['placa']} adicionado com sucesso!"}
     except KeyError as e:
-        # Se você esquecer de mandar algum campo no JSON, ele avisa aqui
         conexao.rollback()
         raise HTTPException(status_code=400, detail=f"Campo ausente no JSON: {e}")
     except Exception as e:
@@ -134,10 +155,13 @@ def adicionar_veiculo_na_garagem(
         cursor.close()
 
 # =====================================================================
-# Rota para listar veículos
+# Rota: listar veículos
 # =====================================================================
 @app.get("/veiculos")
 def listar_veiculos(conexao = Depends(database_connect.obter_conexao)):
+    """
+    Retorna todos os veículos cadastrados no sistema.
+    """
     cursor = conexao.cursor()
     try:
         cursor.execute("SELECT id_veiculo, placa, modelo, ano FROM veiculos;")
@@ -158,13 +182,15 @@ def listar_veiculos(conexao = Depends(database_connect.obter_conexao)):
         cursor.close()
 
 # =====================================================================
-# Rota para listar veículos do usuário
+# Rota: listar veículos do usuário
 # =====================================================================
 @app.get("/usuarios/{id_usuario}/veiculos")
 def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(database_connect.obter_conexao)):
+    """
+    Retorna os veículos da garagem de um usuário específico.
+    """
     cursor = conexao.cursor()
     try:
-        # Cruza as tabelas para pegar só os carros da garagem do usuário específico
         cursor.execute("""
             SELECT v.id_veiculo, v.placa, v.modelo, v.ano 
             FROM veiculos v
@@ -174,7 +200,6 @@ def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(database_conne
         
         veiculos_bd = cursor.fetchall()
         
-        # Monta a lista de dicionários na mão
         return [
             {
                 "id_veiculo": v[0],
@@ -185,22 +210,25 @@ def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(database_conne
         ]
         
     except Exception as e:
-        # O airbag ativado caso algo dê errado
         conexao.rollback()
         raise HTTPException(status_code=400, detail=f"Erro ao buscar veículos do usuário: {e}")
         
     finally:
-        # A faxina
         cursor.close()
 
 # =====================================================================
-# Rota para remover veículos
+# Rota: remover veículo
 # =====================================================================
 @app.delete("/veiculos/{id_veiculo}")
 def remover_veiculo(id_veiculo: int, conexao = Depends(database_connect.obter_conexao)):
+    """
+    Remove um veículo e todo o seu histórico do sistema.
+    A deleção respeita a ordem das constraints de Foreign Key:
+    reservas → vínculos de garagem (usuario_veiculo) → veículo.
+    """
     cursor = conexao.cursor()
     try:
-        # 1. Pegamos a placa do veículo, pois precisamos dela para limpar a tabela 'usuario_veiculo'
+        # busca a placa — necessária para limpar usuario_veiculo (FK por placa, não por id)
         cursor.execute("SELECT placa FROM veiculos WHERE id_veiculo = %s;", (id_veiculo,))
         resultado = cursor.fetchone()
         
@@ -208,13 +236,9 @@ def remover_veiculo(id_veiculo: int, conexao = Depends(database_connect.obter_co
             raise HTTPException(status_code=404, detail="Veículo não encontrado.")
         placa = resultado[0]
 
-        # 2. Apagamos todas as reservas atreladas a este veículo
+        # ordem de deleção respeita as FKs: reservas → garagem → veículo
         cursor.execute("DELETE FROM reservas WHERE id_veiculo = %s;", (id_veiculo,))
-        
-        # 3. Removemos o vínculo do veículo com qualquer usuário (usando a placa)
         cursor.execute("DELETE FROM usuario_veiculo WHERE placa = %s;", (placa,))
-        
-        # 4. Finalmente, apagamos o veículo da tabela principal
         cursor.execute("DELETE FROM veiculos WHERE id_veiculo = %s;", (id_veiculo,))
         
         conexao.commit()
@@ -227,7 +251,7 @@ def remover_veiculo(id_veiculo: int, conexao = Depends(database_connect.obter_co
         cursor.close()
 
 # =====================================================================
-# Rota para comprar reserva 
+# Rota: emitir reserva
 # =====================================================================
 @app.post("/reservas", status_code=201)
 def comprar_reserva(
@@ -240,9 +264,15 @@ def comprar_reserva(
     ), 
     conexao = Depends(database_connect.obter_conexao)
 ):
+    """
+    Emite uma reserva de estacionamento para um veículo da garagem do usuário.
+    Valida se o veículo pertence à garagem do usuário antes de inserir.
+    Parâmetros: id_usuario (int), placa (VARCHAR(50)).
+    Retorna: mensagem de sucesso e o id_reserva gerado.
+    """
     cursor = conexao.cursor()
     try:
-        # Pega o ID do carro e confirma se é da garagem
+        # valida se a placa pertence à garagem do usuário antes de inserir
         cursor.execute("""
             SELECT v.id_veiculo FROM veiculos v
             JOIN usuario_veiculo uv ON v.placa = uv.placa
@@ -272,10 +302,13 @@ def comprar_reserva(
         cursor.close()
 
 # =====================================================================
-# Rota para listar reservas
+# Rota: listar reservas
 # =====================================================================
 @app.get("/reservas")
 def listar_reservas(conexao = Depends(database_connect.obter_conexao)):
+    """
+    Retorna todas as reservas registradas no sistema.
+    """
     cursor = conexao.cursor()
     try:
         cursor.execute("SELECT id_reserva, id_usuario, id_veiculo FROM reservas")
@@ -295,10 +328,14 @@ def listar_reservas(conexao = Depends(database_connect.obter_conexao)):
         cursor.close()
 
 # =====================================================================
-# Rota para remover reservas
+# Rota: remover reserva
 # =====================================================================
 @app.delete("/reservas/{id_reserva}")
 def remover_reserva(id_reserva: int, conexao = Depends(database_connect.obter_conexao)):
+    """
+    Remove uma reserva pelo seu ID.
+    Retorna 404 se a reserva não for encontrada.
+    """
     cursor = conexao.cursor()
     try:
         cursor.execute("DELETE FROM reservas WHERE id_reserva = %s RETURNING id_reserva;", (id_reserva,))

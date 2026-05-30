@@ -1,47 +1,47 @@
 version: '3.8'
 
 services:
-  # === SERVIÇO 1: O BANCO DE DADOS ===
+  # --- db: banco de dados PostgreSQL ---
   db:
-    image: postgres:15-alpine # Imagem super leve do Postgres
+    image: postgres:15-alpine # alpine: imagem slim
     container_name: zona_azul_db
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=admin
       - POSTGRES_DB=zona_azul
     ports:
-      - "5432:5432" # Expõe a porta para você poder usar o DBeaver ou script local
+      - "5432:5432" # exposta para acesso local (DBeaver, psql)
     volumes:
-      - pgdata:/var/lib/postgresql/data # Salva os dados para não sumirem se o contêiner desligar
-      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql # Cria as tabelas
+      - pgdata:/var/lib/postgresql/data # volume persistente: dados sobrevivem ao restart
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql # executado automaticamente no primeiro start
 
-  # === SERVIÇO 2: A SUA API ===
+  # --- api_usuario: microsserviço do usuário ---
   api_usuario:
     build: 
       context: .
       dockerfile: ./backend_usuario/Dockerfile
     container_name: zona_azul_api_usuario
     depends_on:
-      - db # A API só liga depois que o banco estiver de pé
+      - db # garante que o db esteja pronto antes de subir
     ports:
-      - "8000:8000" # Libera a porta do Swagger para o seu navegador
+      - "8000:8000" # Swagger acessível em localhost:8000/docs
     environment:
-      # O pulo do gato: A API não conecta mais em 'localhost', ela conecta em 'db'
       - DB_HOST=db 
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_NAME=zona_azul
 
+  # --- api_fiscal: microsserviço do fiscal ---
   api_fiscal:
     build: 
       context: .
       dockerfile: ./backend_fiscal/Dockerfile
     container_name: zona_azul_api_fiscal
     depends_on:
-      - db
+      - db # garante que o db esteja pronto antes de subir
     ports:
-      - "8001:8000"
+      - "8001:8000" # Porta interna 8000, exposta como 8001 para não conflitar com a api_usuario
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -50,4 +50,4 @@ services:
       - DB_NAME=zona_azul
 
 volumes:
-  pgdata: # Declaração do volume do banco
+  pgdata:

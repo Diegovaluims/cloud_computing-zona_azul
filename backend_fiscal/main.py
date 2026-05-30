@@ -1,28 +1,41 @@
+"""
+Backend Fiscal - Microsserviço de Validação
+
+Microsserviço enxuto de leitura. Recebe uma placa via URL e retorna
+se o veículo está REGULAR (reserva ativa) ou IRREGULAR (sem reserva).
+
+Porta padrão: 8001 | Documentação: http://localhost:8001/docs
+"""
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import database_connect
 
 app = FastAPI(title="API Zona Azul - Rascunho Infraestrutura Fiscal")
 
+# CORS liberado para qualquer origem (*) — temporário, a ser restrito quando o Frontend for acoplado
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # =====================================================================
-# Rota para buscar reserva por placa
+# Rota: fiscalizar veículo
 # =====================================================================
 
 @app.get("/fiscalizacao/{placa}")
 def fiscalizar_veiculo(placa: str, conexao = Depends(database_connect.obter_conexao)):
+    """
+    Verifica se um veículo possui reserva ativa no sistema.
+    Parâmetro de URL: placa (VARCHAR(50)).
+    Retorna: {"status": "REGULAR"} se houver reserva, ou {"status": "IRREGULAR"} caso contrário.
+    """
     try:
         cursor = conexao.cursor()
-        
-        # Query simplificada: Busca apenas se o veículo tem uma reserva registrada
-        # Como você adicionou 'setores', podemos até trazer o nome do setor se quiser!
+
+        # busca existência de reserva — sem retornar dados desnecessários
         query = """
             SELECT 1
             FROM reservas r
@@ -39,7 +52,7 @@ def fiscalizar_veiculo(placa: str, conexao = Depends(database_connect.obter_cone
                 "status": "REGULAR",
                 "detalhes": f"Veículo com placa {placa} possui reserva registrada."
             }
-        
+
         return {
             "status": "IRREGULAR",
             "detalhes": "Nenhuma reserva encontrada para esta placa."
