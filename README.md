@@ -59,6 +59,18 @@ docker-compose up -d --build
 
 ---
 
+## Importante!!
+Não se esqueça de excluir os contêineres orfãos depois de terminar de testar
+
+1. Lista todos os contêineres existentes
+```bash
+docker ps -a
+```
+2. Deleta o contêiner
+```bash
+docker rm -f nome_conteiner
+```
+
 ## Próximos Passos
 
 - [x] Criação do Backend (APIs + Banco).
