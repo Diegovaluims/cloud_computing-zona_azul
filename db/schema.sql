@@ -1,5 +1,5 @@
 -- Recriando tabelas para zerar o estado
-DROP TABLE IF EXISTS usuario_veiculo, reservas, setores, veiculos, usuarios CASCADE;
+DROP TABLE IF EXISTS usuario_veiculo, reservas, veiculos, usuarios CASCADE;
 
 -- Tabela de Usuários
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -16,18 +16,11 @@ CREATE TABLE IF NOT EXISTS veiculos (
     ano INTEGER
 );
 
--- Tabela de Setores
-CREATE TABLE IF NOT EXISTS setores (
-    id_setor SERIAL PRIMARY KEY,
-    nome_setor VARCHAR(50) NOT NULL
-);
-
 -- Tabela de Reservas (Tickets)
 CREATE TABLE IF NOT EXISTS reservas (
     id_reserva SERIAL PRIMARY KEY,
     id_usuario INTEGER REFERENCES usuarios(id_usuario),
-    id_veiculo INTEGER REFERENCES veiculos(id_veiculo),
-    id_setor INTEGER REFERENCES setores(id_setor)
+    id_veiculo INTEGER REFERENCES veiculos(id_veiculo)
 );
 
 -- Tabela ponte entre o usuário e seus veículos salvos
