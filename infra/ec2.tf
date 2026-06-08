@@ -47,10 +47,17 @@ resource "aws_security_group" "zona_azul_sg" {
   }
 }
 
+# Faz o upload da sua chave pública local para a AWS
+resource "aws_key_pair" "acesso_ssh" {
+  key_name   = "chave-zona-azul"
+  public_key = file("~/.ssh/zona_azul_key.pub")
+}
+
 # 3. Criação da Instância EC2
 resource "aws_instance" "backend_server" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t3.micro" # Elegível para o plano gratuito
+  key_name      = aws_key_pair.acesso_ssh.key_name
 
   # Atrela o grupo de segurança criado acima à máquina
   vpc_security_group_ids = [aws_security_group.zona_azul_sg.id]

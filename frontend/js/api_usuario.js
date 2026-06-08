@@ -5,7 +5,7 @@
  * Segurança: usa textContent e createElement para inserção no DOM (sem innerHTML).
  */
 
-const API_USUARIO = 'http://18.231.114.221:8000';
+const API_USUARIO = 'http://54.20.72.204:8000';
 
 // --- Sessão ---
 const idUsuario = localStorage.getItem('id_usuario');

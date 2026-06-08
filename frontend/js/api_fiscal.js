@@ -5,7 +5,7 @@
  * Segurança: usa textContent e createElement para inserção no DOM (sem innerHTML).
  */
 
-var API_FISCAL = 'http://18.231.114.221:8001';
+var API_FISCAL = 'http://54.20.72.204:8001';
 
 // --- Utilitários ---
 function mostrarAlertaFiscal(mensagem, tipo) {
