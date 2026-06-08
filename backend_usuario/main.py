@@ -8,7 +8,10 @@ Porta padrão: 8000 | Documentação: http://localhost:8000/docs
 """
 from fastapi import FastAPI, Depends, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-import database_connect
+from pydantic import BaseModel
+from db.database_connect import obter_conexao
+import psycopg2
+import psycopg2.errors
 
 # =====================================================================
 # INICIALIZAÇÃO
@@ -24,6 +27,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class LoginRequest(BaseModel):
+    email: str
+    senha: str = None  # Opcional por enquanto
+
+class CriarUsuarioRequest(BaseModel):
+    nome: str
+    email: str
+
+# =====================================================================
+# Rota: login
+# =====================================================================
+@app.post("/login")
+def realizar_login(dados: LoginRequest, conexao = Depends(obter_conexao)):
+    cursor = conexao.cursor()
+    try:
+        query = "SELECT id_usuario, nome FROM usuarios WHERE email = %s;"
+        cursor.execute(query, (dados.email,))
+        usuario = cursor.fetchone()
+        
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+            
+        return {
+            "id_usuario": usuario[0],
+            "nome": usuario[1]
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail="Erro interno no servidor.")
+    finally:
+        cursor.close()
+
 # =====================================================================
 # Rota: criar usuário
 # =====================================================================
@@ -36,7 +72,7 @@ def criar_usuario(
             "email": "joao@email.com"
         }
     ), 
-    conexao = Depends(database_connect.obter_conexao)
+    conexao = Depends(obter_conexao)
 ):
     """
     Cria um novo usuário no sistema.
@@ -54,6 +90,9 @@ def criar_usuario(
         conexao.commit()
         
         return {"mensagem": "Usuário criado com sucesso!", "id_usuario": id_novo}
+    except psycopg2.errors.UniqueViolation:
+        conexao.rollback()
+        raise HTTPException(status_code=409, detail="E-mail já cadastrado no sistema.")
     except KeyError as e:
         conexao.rollback()
         raise HTTPException(status_code=400, detail=f"Campo ausente no JSON: {e}")
@@ -67,7 +106,7 @@ def criar_usuario(
 # Rota: listar usuários
 # =====================================================================
 @app.get("/usuarios")
-def listar_usuarios(conexao = Depends(database_connect.obter_conexao)):
+def listar_usuarios(conexao = Depends(obter_conexao)):
     """
     Retorna a lista completa de usuários cadastrados no sistema.
     """
@@ -78,7 +117,6 @@ def listar_usuarios(conexao = Depends(database_connect.obter_conexao)):
         
         return [{"id_usuario": u[0], "nome": u[1], "email": u[2]} for u in usuarios_bd]
     except Exception as e:
-        conexao.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cursor.close()
@@ -87,7 +125,7 @@ def listar_usuarios(conexao = Depends(database_connect.obter_conexao)):
 # Rota: remover usuário
 # =====================================================================
 @app.delete("/usuarios/{id_usuario}")
-def remover_usuario(id_usuario: int, conexao = Depends(database_connect.obter_conexao)):
+def remover_usuario(id_usuario: int, conexao = Depends(obter_conexao)):
     """
     Remove um usuário e todos os seus vínculos do sistema.
     A deleção respeita a ordem das constraints de Foreign Key:
@@ -95,9 +133,6 @@ def remover_usuario(id_usuario: int, conexao = Depends(database_connect.obter_co
     """
     cursor = conexao.cursor()
     try:
-        # ordem de deleção respeita as FKs: reservas → garagem → usuário
-        cursor.execute("DELETE FROM reservas WHERE id_usuario = %s;", (id_usuario,))
-        cursor.execute("DELETE FROM usuario_veiculo WHERE id_usuario = %s;", (id_usuario,))
         cursor.execute("DELETE FROM usuarios WHERE id_usuario = %s RETURNING id_usuario;", (id_usuario,))
         
         if cursor.rowcount == 0:
@@ -126,7 +161,7 @@ def adicionar_veiculo_na_garagem(
             "ano": 1978
         }
     ), 
-    conexao = Depends(database_connect.obter_conexao)
+    conexao = Depends(obter_conexao)
 ):
     """
     Cadastra um veículo e o vincula à garagem do usuário.
@@ -135,6 +170,10 @@ def adicionar_veiculo_na_garagem(
     """
     cursor = conexao.cursor()
     try:
+        cursor.execute("SELECT 1 FROM usuarios WHERE id_usuario = %s;", (id_usuario,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
         cursor.execute(
             "INSERT INTO veiculos (placa, modelo, ano) VALUES (%s, %s, %s) ON CONFLICT (placa) DO NOTHING;", 
             (veiculo["placa"], veiculo["modelo"], veiculo["ano"])
@@ -145,6 +184,9 @@ def adicionar_veiculo_na_garagem(
         )
         conexao.commit()
         return {"mensagem": f"Veículo {veiculo['placa']} adicionado com sucesso!"}
+    except psycopg2.errors.UniqueViolation:
+        conexao.rollback()
+        raise HTTPException(status_code=409, detail="Veículo já está na garagem deste usuário.")
     except KeyError as e:
         conexao.rollback()
         raise HTTPException(status_code=400, detail=f"Campo ausente no JSON: {e}")
@@ -158,7 +200,7 @@ def adicionar_veiculo_na_garagem(
 # Rota: listar veículos
 # =====================================================================
 @app.get("/veiculos")
-def listar_veiculos(conexao = Depends(database_connect.obter_conexao)):
+def listar_veiculos(conexao = Depends(obter_conexao)):
     """
     Retorna todos os veículos cadastrados no sistema.
     """
@@ -176,7 +218,6 @@ def listar_veiculos(conexao = Depends(database_connect.obter_conexao)):
             } for v in veiculos_bd
         ]
     except Exception as e:
-        conexao.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cursor.close()
@@ -185,7 +226,7 @@ def listar_veiculos(conexao = Depends(database_connect.obter_conexao)):
 # Rota: listar veículos do usuário
 # =====================================================================
 @app.get("/usuarios/{id_usuario}/veiculos")
-def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(database_connect.obter_conexao)):
+def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(obter_conexao)):
     """
     Retorna os veículos da garagem de um usuário específico.
     """
@@ -210,7 +251,6 @@ def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(database_conne
         ]
         
     except Exception as e:
-        conexao.rollback()
         raise HTTPException(status_code=400, detail=f"Erro ao buscar veículos do usuário: {e}")
         
     finally:
@@ -220,7 +260,7 @@ def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(database_conne
 # Rota: remover veículo
 # =====================================================================
 @app.delete("/veiculos/{id_veiculo}")
-def remover_veiculo(id_veiculo: int, conexao = Depends(database_connect.obter_conexao)):
+def remover_veiculo(id_veiculo: int, conexao = Depends(obter_conexao)):
     """
     Remove um veículo e todo o seu histórico do sistema.
     A deleção respeita a ordem das constraints de Foreign Key:
@@ -228,18 +268,12 @@ def remover_veiculo(id_veiculo: int, conexao = Depends(database_connect.obter_co
     """
     cursor = conexao.cursor()
     try:
-        # busca a placa — necessária para limpar usuario_veiculo (FK por placa, não por id)
-        cursor.execute("SELECT placa FROM veiculos WHERE id_veiculo = %s;", (id_veiculo,))
+        cursor.execute("DELETE FROM veiculos WHERE id_veiculo = %s RETURNING placa;", (id_veiculo,))
         resultado = cursor.fetchone()
         
         if not resultado:
             raise HTTPException(status_code=404, detail="Veículo não encontrado.")
         placa = resultado[0]
-
-        # ordem de deleção respeita as FKs: reservas → garagem → veículo
-        cursor.execute("DELETE FROM reservas WHERE id_veiculo = %s;", (id_veiculo,))
-        cursor.execute("DELETE FROM usuario_veiculo WHERE placa = %s;", (placa,))
-        cursor.execute("DELETE FROM veiculos WHERE id_veiculo = %s;", (id_veiculo,))
         
         conexao.commit()
         return {"mensagem": f"Veículo de placa {placa} e todo o seu histórico foram removidos com sucesso!"}
@@ -262,7 +296,7 @@ def comprar_reserva(
             "placa": "ABC-1234",
         }
     ), 
-    conexao = Depends(database_connect.obter_conexao)
+    conexao = Depends(obter_conexao)
 ):
     """
     Emite uma reserva de estacionamento para um veículo da garagem do usuário.
@@ -276,7 +310,8 @@ def comprar_reserva(
         cursor.execute("""
             SELECT v.id_veiculo FROM veiculos v
             JOIN usuario_veiculo uv ON v.placa = uv.placa
-            WHERE uv.id_usuario = %s AND v.placa = %s;
+            WHERE uv.id_usuario = %s AND v.placa = %s
+            FOR UPDATE;
         """, (reserva["id_usuario"], reserva["placa"]))
         
         resultado = cursor.fetchone()
@@ -305,7 +340,7 @@ def comprar_reserva(
 # Rota: listar reservas
 # =====================================================================
 @app.get("/reservas")
-def listar_reservas(conexao = Depends(database_connect.obter_conexao)):
+def listar_reservas(conexao = Depends(obter_conexao)):
     """
     Retorna todas as reservas registradas no sistema.
     """
@@ -322,7 +357,6 @@ def listar_reservas(conexao = Depends(database_connect.obter_conexao)):
             } for r in reservas_bd
         ]
     except Exception as e:
-        conexao.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cursor.close()
@@ -331,7 +365,7 @@ def listar_reservas(conexao = Depends(database_connect.obter_conexao)):
 # Rota: remover reserva
 # =====================================================================
 @app.delete("/reservas/{id_reserva}")
-def remover_reserva(id_reserva: int, conexao = Depends(database_connect.obter_conexao)):
+def remover_reserva(id_reserva: int, conexao = Depends(obter_conexao)):
     """
     Remove uma reserva pelo seu ID.
     Retorna 404 se a reserva não for encontrada.

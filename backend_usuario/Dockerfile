@@ -7,8 +7,8 @@ WORKDIR /app
 # (se o requirements não mudar, o pip install não é reexecutado no rebuild)
 COPY backend_usuario/requirements.txt .
 
-# Módulo compartilhado de conexão com o banco — copiado da raiz pois o contexto de build é '.'
-COPY db/database_connect.py .
+# Módulo compartilhado de conexão com o banco — copiado como pacote Python
+COPY db/ ./db/
 
 # --no-cache-dir: evita cache para manter a imagem menor
 RUN pip install --no-cache-dir -r requirements.txt

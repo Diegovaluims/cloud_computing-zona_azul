@@ -83,4 +83,6 @@ def obter_conexao():
     finally:
         # devolve a conexão ao pool para reutilização
         if conexao is not None:
+            # Garante que transações pendentes não contaminem a próxima requisição
+            conexao.rollback()
             connection_pool.putconn(conexao)

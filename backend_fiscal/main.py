@@ -8,7 +8,7 @@ Porta padrão: 8001 | Documentação: http://localhost:8001/docs
 """
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import database_connect
+from db.database_connect import obter_conexao
 
 app = FastAPI(title="API Zona Azul - Rascunho Infraestrutura Fiscal")
 
@@ -26,13 +26,18 @@ app.add_middleware(
 # =====================================================================
 
 @app.get("/fiscalizacao/{placa}")
-def fiscalizar_veiculo(placa: str, conexao = Depends(database_connect.obter_conexao)):
+def fiscalizar_veiculo(placa: str, conexao = Depends(obter_conexao)):
     """
     Verifica se um veículo possui reserva ativa no sistema.
     Parâmetro de URL: placa (VARCHAR(50)).
     Retorna: {"status": "REGULAR"} se houver reserva, ou {"status": "IRREGULAR"} caso contrário.
     """
     try:
+        # Validação básica do formato da placa
+        placa = placa.strip().upper()
+        if not placa:
+            raise HTTPException(status_code=400, detail="Placa não pode ser vazia.")
+
         cursor = conexao.cursor()
 
         # busca existência de reserva — sem retornar dados desnecessários
@@ -59,4 +64,6 @@ def fiscalizar_veiculo(placa: str, conexao = Depends(database_connect.obter_cone
         }
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao processar consulta: {e}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail="Erro interno ao processar consulta.")

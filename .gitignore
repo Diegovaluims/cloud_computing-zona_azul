@@ -6,6 +6,10 @@
 venv/
 env/
 .venv/
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
 
 # Cache do Python
 __pycache__/

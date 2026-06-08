@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # --- db: banco de dados PostgreSQL ---
   db:
@@ -10,7 +8,7 @@ services:
       - POSTGRES_PASSWORD=admin
       - POSTGRES_DB=zona_azul
     ports:
-      - "5432:5432" # exposta para acesso local (DBeaver, psql)
+      - "5433:5432" # exposta para acesso local (DBeaver, psql)
     volumes:
       - pgdata:/var/lib/postgresql/data # volume persistente: dados sobrevivem ao restart
       - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql # executado automaticamente no primeiro start

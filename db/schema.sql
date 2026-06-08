@@ -11,7 +11,7 @@ DROP TABLE IF EXISTS usuario_veiculo, reservas, veiculos, usuarios CASCADE;
 CREATE TABLE IF NOT EXISTS usuarios (
     id_usuario SERIAL PRIMARY KEY, -- SERIAL: autoincremento gerenciado pelo PostgreSQL
     nome VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL
+    email VARCHAR(100) NOT NULL UNIQUE
 );
 
 -- Tabela de Veículos
@@ -25,14 +25,14 @@ CREATE TABLE IF NOT EXISTS veiculos (
 -- Tabela de Reservas (Tickets)
 CREATE TABLE IF NOT EXISTS reservas (
     id_reserva SERIAL PRIMARY KEY,
-    id_usuario INTEGER REFERENCES usuarios(id_usuario), -- FK: integridade referencial com usuarios
-    id_veiculo INTEGER REFERENCES veiculos(id_veiculo)  -- FK: integridade referencial com veiculos
+    id_usuario INTEGER NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE, -- FK: integridade referencial com usuarios
+    id_veiculo INTEGER NOT NULL REFERENCES veiculos(id_veiculo) ON DELETE CASCADE  -- FK: integridade referencial com veiculos
 );
 
 -- Tabela ponte entre usuário e seus veículos (relação N:N)
 -- PRIMARY KEY composta: impede que o mesmo usuário vincule a mesma placa duas vezes
 CREATE TABLE IF NOT EXISTS usuario_veiculo (
-    id_usuario INTEGER REFERENCES usuarios(id_usuario),
-    placa VARCHAR(50) REFERENCES veiculos(placa),
+    id_usuario INTEGER NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    placa VARCHAR(50) NOT NULL REFERENCES veiculos(placa) ON DELETE CASCADE,
     PRIMARY KEY (id_usuario, placa)
 );
