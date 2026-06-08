@@ -66,7 +66,7 @@ resource "aws_instance" "backend_server" {
               mkdir -p /home/ubuntu/app
               cd /home/ubuntu/app
               
-              git clone https://github.com/Diegovaluims/cloud_computing-zona_azul.git .
+              git clone -b dev https://github.com/Diegovaluims/cloud_computing-zona_azul.git .
               
               # Executa o compose usando o plugin v2
               sudo docker compose up -d --build
