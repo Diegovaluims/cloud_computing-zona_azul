@@ -30,6 +30,14 @@ resource "aws_security_group" "zona_azul_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Libera a porta 22 (Caso você queira acessar a máquina via SSH futuramente)
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Libera a saída da máquina para a internet (Necessário para baixar o Docker)
   egress {
     from_port   = 0
