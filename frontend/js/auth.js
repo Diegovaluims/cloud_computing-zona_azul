@@ -4,7 +4,7 @@ const divErro = document.getElementById('mensagemErro');
 const divSucesso = document.getElementById('mensagemSucesso');
 
 // API corrigida apontando para a AWS
-const API_USUARIO = 'http://54.20.72.204:8000';
+const API_USUARIO = 'http://54.233.99.209:8000';
 
 // Limpa qualquer ID antigo guardado de testes locais, caso esteja rodando na tela de login
 // Mas só faz isso se tiver acabado de abrir a página (sem erro prévio)
@@ -91,16 +91,16 @@ formCadastro.addEventListener('submit', async function (evento) {
         if (resposta.ok) {
             const dados = await resposta.json();
             mostrarSucesso("Conta criada com sucesso! Redirecionando...");
-            
+
             // Limpa o Storage para garantir um estado limpo, depois seta o novo
             localStorage.clear();
             localStorage.setItem('id_usuario', dados.id_usuario);
             localStorage.setItem('nome_usuario', nomeDigitado);
-            
+
             setTimeout(() => {
                 window.location.href = 'painel_usuario.html';
             }, 1500);
-            
+
         } else if (resposta.status === 409) {
             mostrarErro("Este e-mail já está cadastrado no sistema.");
         } else {

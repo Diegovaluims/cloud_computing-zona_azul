@@ -69,6 +69,8 @@ resource "aws_instance" "backend_server" {
               
               # Instala o Docker
               sudo apt-get install -y docker.io
+              sudo service docker start
+              sudo service postgresql start
               sudo systemctl start docker
               sudo systemctl enable docker
               
@@ -92,7 +94,6 @@ resource "aws_instance" "backend_server" {
   }
 }
 
-# 4. Exibe o IP público do servidor no terminal ao concluir
 output "ip_publico_backend" {
   value = aws_instance.backend_server.public_ip
 }
