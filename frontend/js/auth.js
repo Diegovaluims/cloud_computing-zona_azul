@@ -4,7 +4,7 @@ const divErro = document.getElementById('mensagemErro');
 const divSucesso = document.getElementById('mensagemSucesso');
 
 // API corrigida apontando para a AWS
-const API_USUARIO = 'http://54.233.99.209:8000';
+const API_USUARIO = 'http://54.232.52.178:8000';
 
 // Limpa qualquer ID antigo guardado de testes locais, caso esteja rodando na tela de login
 // Mas só faz isso se tiver acabado de abrir a página (sem erro prévio)
