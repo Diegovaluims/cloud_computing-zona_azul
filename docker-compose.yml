@@ -3,6 +3,7 @@ services:
   db:
     image: postgres:15-alpine # alpine: imagem slim
     container_name: zona_azul_db
+    restart: always
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=admin
@@ -19,6 +20,7 @@ services:
       context: .
       dockerfile: ./backend_usuario/Dockerfile
     container_name: zona_azul_api_usuario
+    restart: always
     depends_on:
       - db # garante que o db esteja pronto antes de subir
     ports:
@@ -36,6 +38,7 @@ services:
       context: .
       dockerfile: ./backend_fiscal/Dockerfile
     container_name: zona_azul_api_fiscal
+    restart: always
     depends_on:
       - db # garante que o db esteja pronto antes de subir
     ports:

@@ -70,7 +70,6 @@ resource "aws_instance" "backend_server" {
               # Instala o Docker
               sudo apt-get install -y docker.io
               sudo service docker start
-              sudo service postgresql start
               sudo systemctl start docker
               sudo systemctl enable docker
               
@@ -94,6 +93,16 @@ resource "aws_instance" "backend_server" {
   }
 }
 
+# 4. IP Elástico (Elastic IP) — mantém o IP fixo mesmo após stop/start da instância
+resource "aws_eip" "backend_ip" {
+  instance = aws_instance.backend_server.id
+
+  tags = {
+    Name = "ZonaAzul-ElasticIP"
+  }
+}
+
 output "ip_publico_backend" {
-  value = aws_instance.backend_server.public_ip
+  description = "IP fixo (Elastic IP) do backend — use este nos arquivos JS do frontend"
+  value       = aws_eip.backend_ip.public_ip
 }
