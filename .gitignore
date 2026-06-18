@@ -1,11 +1,17 @@
 # Variáveis de Ambiente
 .env
 .env.*
+temp/
+
+# Arquivos Gerados (Segurança)
+jwt_secret.txt
 
 # Ambientes Virtuais
 venv/
 env/
 .venv/
+
+# Terraform
 .terraform/
 .terraform.lock.hcl
 *.tfstate
@@ -16,7 +22,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# IDE configs
+# Agent/IDE configs
+.gemini/
 .vscode/
 .idea/
 *.swp
