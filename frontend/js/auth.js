@@ -4,7 +4,7 @@ const divErro = document.getElementById('mensagemErro');
 const divSucesso = document.getElementById('mensagemSucesso');
 
 // API corrigida apontando para a AWS
-const API_USUARIO = 'http://54.232.52.178:8000';
+const API_AUTH = '/api/auth';
 
 // Limpa qualquer ID antigo guardado de testes locais, caso esteja rodando na tela de login
 // Mas só faz isso se tiver acabado de abrir a página (sem erro prévio)
@@ -28,50 +28,63 @@ function toggleMode(mode) {
 }
 
 // === FLUXO DE LOGIN ===
-formLogin.addEventListener('submit', async function (evento) {
+document.getElementById('btnLoginUsuario').addEventListener('click', async function (evento) {
     evento.preventDefault();
-    const emailDigitado = document.getElementById('emailLogin').value;
-    const btn = document.getElementById('btnLogin');
-    const spinner = document.getElementById('spinnerLogin');
+    await fazerLogin(API_AUTH + '/login', 'painel_usuario.html', 'btnLoginUsuario', 'spinnerLoginUsu', 'email');
+});
 
-    // Reset de mensagens e UI state
+document.getElementById('btnLoginFiscal').addEventListener('click', async function (evento) {
+    evento.preventDefault();
+    await fazerLogin(API_AUTH + '/fiscal/login', 'painel_fiscal.html', 'btnLoginFiscal', 'spinnerLoginFisc', 'matricula');
+});
+
+async function fazerLogin(url, redirectUrl, btnId, spinnerId, campoId) {
+    const credencialDigitada = document.getElementById('emailLogin').value;
+    const senhaDigitada = document.getElementById('senhaLogin').value;
+    const btn = document.getElementById(btnId);
+    const spinner = document.getElementById(spinnerId);
+
     divErro.classList.add('d-none');
     btn.disabled = true;
     spinner.classList.remove('d-none');
 
     try {
-        const resposta = await fetch(`${API_USUARIO}/login`, {
+        const payload = { senha: senhaDigitada };
+        payload[campoId] = credencialDigitada; // 'email' ou 'matricula'
+
+        const resposta = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailDigitado })
+            body: JSON.stringify(payload),
+            credentials: 'include'
         });
 
         if (resposta.ok) {
             const dados = await resposta.json();
-            // Limpa o Storage para garantir um estado limpo, depois seta o novo
             localStorage.clear();
-            localStorage.setItem('id_usuario', dados.id_usuario);
+            localStorage.setItem('id_usuario', dados.id_usuario || dados.id_fiscal);
             localStorage.setItem('nome_usuario', dados.nome);
-            window.location.href = 'painel_usuario.html';
-        } else if (resposta.status === 404) {
-            mostrarErro("Usuário não encontrado. Se ainda não possui conta, clique em Cadastre-se.");
+            window.location.href = redirectUrl;
+        } else if (resposta.status === 404 || resposta.status === 401) {
+            mostrarErro("Credenciais inválidas.");
         } else {
             mostrarErro("Erro no servidor ao tentar realizar login.");
         }
     } catch (erro) {
         console.error(erro);
-        mostrarErro("Falha de conexão com a API. Verifique sua internet ou se o servidor AWS está rodando.");
+        mostrarErro("Falha de conexão com a API.");
     } finally {
         btn.disabled = false;
         spinner.classList.add('d-none');
     }
-});
+}
 
 // === FLUXO DE CADASTRO ===
 formCadastro.addEventListener('submit', async function (evento) {
     evento.preventDefault();
     const nomeDigitado = document.getElementById('nomeCadastro').value;
     const emailDigitado = document.getElementById('emailCadastro').value;
+    const senhaDigitada = document.getElementById('senhaCadastro').value;
     const btn = document.getElementById('btnCadastro');
     const spinner = document.getElementById('spinnerCadastro');
 
@@ -82,10 +95,11 @@ formCadastro.addEventListener('submit', async function (evento) {
     spinner.classList.remove('d-none');
 
     try {
-        const resposta = await fetch(`${API_USUARIO}/usuarios`, {
+        const resposta = await fetch(`${API_AUTH}/registro`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nome: nomeDigitado, email: emailDigitado })
+            body: JSON.stringify({ nome: nomeDigitado, email: emailDigitado, senha: senhaDigitada }),
+            credentials: 'include'
         });
 
         if (resposta.ok) {

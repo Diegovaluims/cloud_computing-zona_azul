@@ -4,10 +4,11 @@ services:
     image: postgres:15-alpine # alpine: imagem slim
     container_name: zona_azul_db
     restart: always
+    env_file: .env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=admin
-      - POSTGRES_DB=zona_azul
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     ports:
       - "5433:5432" # exposta para acesso local (DBeaver, psql)
     volumes:
@@ -23,14 +24,15 @@ services:
     restart: always
     depends_on:
       - db # garante que o db esteja pronto antes de subir
-    ports:
-      - "8000:8000" # Swagger acessível em localhost:8000/docs
+    env_file: .env
     environment:
-      - DB_HOST=db 
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=admin
-      - DB_NAME=zona_azul
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 
   # --- api_fiscal: microsserviço do fiscal ---
   api_fiscal:
@@ -41,14 +43,47 @@ services:
     restart: always
     depends_on:
       - db # garante que o db esteja pronto antes de subir
-    ports:
-      - "8001:8000" # Porta interna 8000, exposta como 8001 para não conflitar com a api_usuario
+    env_file: .env
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=admin
-      - DB_NAME=zona_azul
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - ADMIN_KEY=${ADMIN_KEY}
+
+  # --- api_auth: microsserviço de autenticação ---
+  api_auth:
+    build: 
+      context: .
+      dockerfile: ./backend_auth/Dockerfile
+    container_name: zona_azul_api_auth
+    restart: always
+    depends_on:
+      - db
+    env_file: .env
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - ADMIN_KEY=${ADMIN_KEY}
+
+  # --- frontend: Nginx para servir arquivos estáticos ---
+  frontend:
+    image: nginx:alpine
+    container_name: zona_azul_frontend
+    restart: always
+    ports:
+      - "5500:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
 volumes:
   pgdata:

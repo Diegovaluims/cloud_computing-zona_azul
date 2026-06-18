@@ -1,209 +1,75 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zona Azul - Painel do Fiscal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/global.css">
     <style>
-        body {
-            font-family: 'Outfit', sans-serif;
-            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
-            min-height: 100vh;
-            color: #fff;
-            margin: 0;
-            overflow-x: hidden;
+        .sidebar {
+            background: linear-gradient(180deg, #111 0%, #333 100%);
         }
-
-        /* Elementos de fundo dinâmicos */
-        .bg-circle {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.05);
-            animation: float 10s infinite ease-in-out;
-            z-index: -1;
+        .btn-primary-custom {
+            background: #222;
         }
-
-        .bg-circle-1 { width: 400px; height: 400px; top: -100px; left: -100px; }
-        .bg-circle-2 { width: 300px; height: 300px; bottom: -50px; right: -50px; animation-delay: -5s; }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-        }
-
-        .navbar {
-            background: rgba(255, 255, 255, 0.1) !important;
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 15px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            color: #fff;
-        }
-
-        .glass-card .card-header {
-            background: transparent;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-            padding-bottom: 1rem;
-            margin-bottom: 1rem;
-        }
-        
-        .glass-card h5 {
-            font-weight: 600;
-        }
-
-        .form-control, .form-select {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-        }
-
-        .form-control:focus, .form-select:focus {
-            background: rgba(255, 255, 255, 0.15);
-            border-color: #00d2ff;
-            color: #fff;
-            box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
-        }
-
-        .form-control::placeholder {
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .table {
-            color: #fff;
-        }
-
-        .table-striped>tbody>tr:nth-of-type(odd)>* {
-            color: #fff;
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-
-        .table th {
-            border-bottom-color: rgba(255, 255, 255, 0.2);
-            font-weight: 600;
-        }
-
-        .table td {
-            border-bottom-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-dark {
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.3s ease;
-            color: #fff;
-        }
-
-        .btn-dark:hover {
-            background: rgba(0, 0, 0, 0.8);
-            transform: translateY(-2px);
-        }
-        
-        .text-muted {
-            color: rgba(255, 255, 255, 0.6) !important;
-        }
-
-        .alert-danger {
-            background: rgba(220, 53, 69, 0.2);
-            border-color: #dc3545;
-            color: #ffb3b3;
-        }
-
-        .alert-success {
-            background: rgba(25, 135, 84, 0.2);
-            border-color: #198754;
-            color: #a3cfbb;
-        }
-
-        #cardResultado {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-            border-radius: 10px;
+        .btn-primary-custom:hover {
+            background: #000;
         }
     </style>
 </head>
-
 <body>
-    <div class="bg-circle bg-circle-1"></div>
-    <div class="bg-circle bg-circle-2"></div>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>Fiscalização</h2>
+            <nav>
+                <ul>
+                    <li class="nav-item active" data-target="secao-fiscalizacao">🔍 Consultar Placa</li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <span id="nomeFiscalSidebar" class="d-block mb-2 font-weight-bold"></span>
+                <button id="btnLogoutFiscal" class="btn btn-outline-light btn-sm w-100">Sair</button>
+            </div>
+        </aside>
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-dark mb-4">
-        <div class="container">
-            <span class="navbar-brand">Zona Azul — Painel do Fiscal</span>
-            <a href="index.html" class="btn btn-outline-light btn-sm">Voltar ao Login</a>
-        </div>
-    </nav>
-
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-
-                <!-- Card de Fiscalização -->
-                <div class="glass-card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Fiscalizar Veículo</h5>
-                    </div>
-                    <div>
-                        <form id="formFiscalizar">
-                            <div class="input-group mb-3">
-                                <input type="text" class="form-control" id="inputPlacaFiscal"
-                                    placeholder="Digite a placa do veículo" required>
-                                <button type="submit" class="btn btn-dark">Consultar</button>
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- Fiscalização -->
+            <section id="secao-fiscalizacao" class="secao-spa active">
+                <h3 class="mb-4">Central de Fiscalização</h3>
+                <div class="card-glass">
+                    <form id="formFiscalizacao" class="mb-4">
+                        <div class="row g-2 justify-content-center">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control form-control-lg text-center" id="inputPlacaFiscal" placeholder="Digite a Placa (ex: ABC1234)" required style="text-transform: uppercase; font-size: 1.5rem; letter-spacing: 2px;">
                             </div>
-                        </form>
-
-                        <!-- Resultado da consulta -->
-                        <div id="resultadoFiscalizacao" class="d-none mt-3">
-                            <div id="cardResultado" class="card">
-                                <div class="card-body text-center">
-                                    <h3 id="statusTexto" class="mb-2"></h3>
-                                    <p id="detalhesTexto" class="mb-0 text-muted"></p>
-                                    <p id="placaConsultada" class="mt-2 mb-0"></p>
-                                </div>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn-primary-custom btn-lg w-100 h-100">Consultar</button>
                             </div>
                         </div>
+                    </form>
 
-                        <div id="alertFiscal" class="alert d-none mt-3" role="alert"></div>
+                    <!-- Resultado da Consulta -->
+                    <div id="resultadoConsulta" class="d-none text-center mt-5">
+                        <h1 id="statusPlaca" class="display-4 fw-bold"></h1>
+                        <p id="detalhesPlaca" class="lead mt-3"></p>
+                        
+                        <div id="areaMulta" class="mt-4 d-none">
+                            <button id="btnEmitirMulta" class="btn btn-danger btn-lg px-5">Emitir Multa (R$ 50,00)</button>
+                            <input type="hidden" id="motivoMultaOculto">
+                        </div>
+                        <div id="alertMulta" class="alert-glass mt-3 d-none text-start"></div>
                     </div>
                 </div>
+            </section>
 
-                <!-- Histórico de consultas -->
-                <div class="glass-card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Histórico de Consultas</h5>
-                    </div>
-                    <div>
-                        <table class="table table-sm table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Placa</th>
-                                    <th>Status</th>
-                                    <th>Horário</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabelaHistorico"></tbody>
-                        </table>
-                        <p id="semHistorico" class="text-muted text-center mt-3">Nenhuma consulta realizada.</p>
-                    </div>
-                </div>
-
-            </div>
-        </div>
+        </main>
     </div>
 
-    <script src="js/api_fiscal.js"></script>
+    <script src="js/api_fiscal.js?v=2"></script>
 </body>
-
 </html>

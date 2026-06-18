@@ -157,13 +157,19 @@
                     <input type="email" class="form-control" id="emailLogin" placeholder="nome@exemplo.com" required>
                 </div>
                 <div class="mb-4">
-                    <label for="senhaLogin" class="form-label">Senha (Opcional por enquanto)</label>
-                    <input type="password" class="form-control" id="senhaLogin" placeholder="••••••••">
+                    <label for="senhaLogin" class="form-label">Senha</label>
+                    <input type="password" class="form-control" id="senhaLogin" placeholder="••••••••" required>
                 </div>
-                <button type="submit" id="btnLogin" class="btn btn-primary w-100">
-                    <span id="spinnerLogin" class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true"></span>
-                    Acessar o Sistema
-                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" id="btnLoginUsuario" class="btn btn-primary w-100">
+                        <span id="spinnerLoginUsu" class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true"></span>
+                        Acessar como Usuário
+                    </button>
+                    <button type="button" id="btnLoginFiscal" class="btn btn-outline-light w-100">
+                        <span id="spinnerLoginFisc" class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true"></span>
+                        Acessar como Fiscal
+                    </button>
+                </div>
             </form>
             <div class="text-center mt-3">
                 <small>Não possui uma conta? <span class="toggle-link" onclick="toggleMode('cadastro')">Cadastre-se</span></small>
@@ -181,6 +187,10 @@
                     <label for="emailCadastro" class="form-label">E-mail</label>
                     <input type="email" class="form-control" id="emailCadastro" placeholder="nome@exemplo.com" required>
                 </div>
+                <div class="mb-4">
+                    <label for="senhaCadastro" class="form-label">Senha</label>
+                    <input type="password" class="form-control" id="senhaCadastro" placeholder="Mínimo 8 caracteres" required minlength="8">
+                </div>
                 <button type="submit" id="btnCadastro" class="btn btn-primary w-100">
                     <span id="spinnerCadastro" class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true"></span>
                     Criar Minha Conta
@@ -196,8 +206,6 @@
         <div id="mensagemSucesso" class="alert alert-success mt-4 d-none" role="alert" style="background: rgba(25, 135, 84, 0.2); border-color: #198754; color: #a3cfbb;"></div>
 
         <hr style="border-color: rgba(255,255,255,0.2); margin: 1.5rem 0;">
-        
-        <a href="painel_fiscal.html" class="btn btn-outline-light w-100 text-center text-decoration-none">Acessar Área do Fiscal</a>
     </div>
 
     <script src="js/auth.js"></script>

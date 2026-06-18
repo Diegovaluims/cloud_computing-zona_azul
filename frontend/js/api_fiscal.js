@@ -1,100 +1,107 @@
 /**
- * api_fiscal.js — Integração do Painel do Fiscal com a API (porta 8001)
- *
- * Função: Consulta de placa para verificar situação (REGULAR/IRREGULAR).
- * Segurança: usa textContent e createElement para inserção no DOM (sem innerHTML).
+ * api_fiscal.js — Lógica para o Painel do Fiscal (MVP v2)
  */
 
-var API_FISCAL = 'http://54.232.52.178:8001';
+const API_FISCAL = '/api/fiscal';
+const API_AUTH = '/api/auth';
 
-// --- Utilitários ---
-function mostrarAlertaFiscal(mensagem, tipo) {
-    var el = document.getElementById('alertFiscal');
-    el.textContent = mensagem;
-    el.className = 'alert alert-' + tipo + ' mt-3';
-    setTimeout(function () {
-        el.className = 'alert d-none mt-3';
-    }, 3000);
+// --- Sessão ---
+const idFiscal = localStorage.getItem('id_fiscal');
+const nomeFiscal = localStorage.getItem('nome_fiscal');
+
+if (!idFiscal) {
+    window.location.href = 'index.html';
 }
 
-// --- Fiscalização ---
-document.getElementById('formFiscalizar').addEventListener('submit', async function (e) {
+// Update UI
+document.getElementById('nomeFiscalSidebar').textContent = `Fiscal: ${nomeFiscal}`;
+
+document.getElementById('btnLogoutFiscal').addEventListener('click', async function () {
+    try {
+        await fetch(API_AUTH + '/fiscal/logout', { method: 'POST', credentials: 'include' });
+    } catch(e) {}
+    localStorage.removeItem('id_fiscal');
+    localStorage.removeItem('nome_fiscal');
+    window.location.href = 'index.html';
+});
+
+// --- Utilitários ---
+function mostrarAlerta(elementoId, mensagem, tipo) {
+    const el = document.getElementById(elementoId);
+    el.innerHTML = mensagem;
+    el.className = 'alert-glass mt-3 alert-' + tipo;
+    setTimeout(function () {
+        el.className = 'alert-glass mt-3 d-none';
+    }, 4000);
+}
+
+// --- Consulta e Multas ---
+document.getElementById('formFiscalizacao').addEventListener('submit', async function(e) {
     e.preventDefault();
-
-    var placa = document.getElementById('inputPlacaFiscal').value.trim().toUpperCase();
-
-    if (!placa) {
-        mostrarAlertaFiscal('Digite uma placa válida.', 'warning');
-        return;
-    }
+    const placa = document.getElementById('inputPlacaFiscal').value.trim().toUpperCase();
+    if (!placa) return;
 
     try {
-        var resp = await fetch(API_FISCAL + '/fiscalizacao/' + encodeURIComponent(placa));
+        const resp = await fetch(`${API_FISCAL}/fiscalizacao/${placa}`, { credentials: 'include' });
+        const data = await resp.json();
 
-        if (!resp.ok) {
-            mostrarAlertaFiscal('Erro ao consultar a placa.', 'danger');
-            return;
-        }
-
-        var dados = await resp.json();
-        var container = document.getElementById('resultadoFiscalizacao');
-        var card = document.getElementById('cardResultado');
-        var statusTexto = document.getElementById('statusTexto');
-        var detalhesTexto = document.getElementById('detalhesTexto');
-        var placaConsultada = document.getElementById('placaConsultada');
-
-        container.classList.remove('d-none');
-
-        if (dados.status === 'REGULAR') {
-            card.className = 'card border-success';
-            statusTexto.textContent = '✅ REGULAR';
-            statusTexto.className = 'mb-2 text-success';
+        const statusEl = document.getElementById('statusPlaca');
+        const detalhesEl = document.getElementById('detalhesPlaca');
+        const areaMulta = document.getElementById('areaMulta');
+        const motivoOculto = document.getElementById('motivoMultaOculto');
+        const alertMulta = document.getElementById('alertMulta');
+        
+        document.getElementById('resultadoConsulta').classList.remove('d-none');
+        alertMulta.classList.add('d-none');
+        areaMulta.classList.add('d-none');
+        
+        if (resp.ok) {
+            statusEl.textContent = data.status;
+            detalhesEl.textContent = data.detalhes;
+            
+            if (data.status === 'REGULAR') {
+                statusEl.className = 'display-4 fw-bold text-success';
+            } else {
+                statusEl.className = 'display-4 fw-bold text-danger';
+                areaMulta.classList.remove('d-none');
+                motivoOculto.value = data.motivo_multa || 'OUTROS';
+            }
         } else {
-            card.className = 'card border-danger';
-            statusTexto.textContent = '❌ IRREGULAR';
-            statusTexto.className = 'mb-2 text-danger';
+            statusEl.textContent = "Erro";
+            statusEl.className = 'display-4 fw-bold text-warning';
+            detalhesEl.textContent = data.detail || 'Não foi possível consultar a placa.';
         }
-
-        detalhesTexto.textContent = dados.detalhes;
-        placaConsultada.textContent = 'Placa consultada: ' + placa;
-
-        // Adiciona ao histórico
-        adicionarHistorico(placa, dados.status);
 
     } catch (err) {
-        mostrarAlertaFiscal('Erro de conexão com a API. Ela está rodando?', 'danger');
+        document.getElementById('resultadoConsulta').classList.remove('d-none');
+        document.getElementById('statusPlaca').textContent = "Falha de Conexão";
+        document.getElementById('detalhesPlaca').textContent = "Erro de rede ao conectar com a API do fiscal.";
     }
 });
 
-// --- Histórico (local, em memória) ---
-function adicionarHistorico(placa, status) {
-    var tbody = document.getElementById('tabelaHistorico');
-    var semHistorico = document.getElementById('semHistorico');
+// Emitir Multa
+document.getElementById('btnEmitirMulta').addEventListener('click', async function() {
+    const placa = document.getElementById('inputPlacaFiscal').value.trim().toUpperCase();
+    const motivo = document.getElementById('motivoMultaOculto').value;
+    
+    if(!confirm(`Confirma a emissão de multa (R$ 50,00) para o veículo ${placa}?`)) return;
 
-    semHistorico.classList.add('d-none');
+    try {
+        const resp = await fetch(API_FISCAL + '/multas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ placa: placa, motivo: motivo, valor: 50.00 }),
+            credentials: 'include'
+        });
 
-    var tr = document.createElement('tr');
-
-    var tdPlaca = document.createElement('td');
-    tdPlaca.textContent = placa;
-    tr.appendChild(tdPlaca);
-
-    var tdStatus = document.createElement('td');
-    var badge = document.createElement('span');
-    if (status === 'REGULAR') {
-        badge.className = 'badge bg-success';
-        badge.textContent = 'REGULAR';
-    } else {
-        badge.className = 'badge bg-danger';
-        badge.textContent = 'IRREGULAR';
+        if (resp.ok) {
+            mostrarAlerta('alertMulta', 'Multa registrada com sucesso!', 'success');
+            document.getElementById('areaMulta').classList.add('d-none');
+        } else {
+            const erro = await resp.json();
+            mostrarAlerta('alertMulta', erro.detail || 'Erro ao registrar multa.', 'danger');
+        }
+    } catch (err) {
+        mostrarAlerta('alertMulta', 'Erro de conexão.', 'danger');
     }
-    tdStatus.appendChild(badge);
-    tr.appendChild(tdStatus);
-
-    var tdHora = document.createElement('td');
-    tdHora.textContent = new Date().toLocaleTimeString('pt-BR');
-    tr.appendChild(tdHora);
-
-    // Insere no topo da tabela
-    tbody.insertBefore(tr, tbody.firstChild);
-}
+});

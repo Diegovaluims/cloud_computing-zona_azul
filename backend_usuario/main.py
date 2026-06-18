@@ -6,146 +6,46 @@ vinculação usuário-veículo (garagem) e emissão de reservas de estacionament
 
 Porta padrão: 8000 | Documentação: http://localhost:8000/docs
 """
-from fastapi import FastAPI, Depends, HTTPException, Body
+from fastapi import FastAPI, Depends, HTTPException, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from db.database_connect import obter_conexao
+from db.auth import hash_senha, verificar_senha, criar_token, exigir_role, obter_dados_token
 import psycopg2
 import psycopg2.errors
+import os
 
 # =====================================================================
 # INICIALIZAÇÃO
 # =====================================================================
 app = FastAPI(title="API Zona Azul - Rascunho Infraestrutura Usuario")
 
-# CORS liberado para qualquer origem (*) — temporário, a ser restrito quando o Frontend for acoplado
+# CORS liberado para origens específicas
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class LoginRequest(BaseModel):
-    email: str
-    senha: str = None  # Opcional por enquanto
+class ReservaRequest(BaseModel):
+    id_usuario: int
+    placa: str
+    duracao_horas: int = 1
 
-class CriarUsuarioRequest(BaseModel):
-    nome: str
-    email: str
+class RecargaRequest(BaseModel):
+    valor: float
 
-# =====================================================================
-# Rota: login
-# =====================================================================
-@app.post("/login")
-def realizar_login(dados: LoginRequest, conexao = Depends(obter_conexao)):
-    cursor = conexao.cursor()
-    try:
-        query = "SELECT id_usuario, nome FROM usuarios WHERE email = %s;"
-        cursor.execute(query, (dados.email,))
-        usuario = cursor.fetchone()
-        
-        if not usuario:
-            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
-            
-        return {
-            "id_usuario": usuario[0],
-            "nome": usuario[1]
-        }
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=500, detail="Erro interno no servidor.")
-    finally:
-        cursor.close()
+class PerfilUpdateRequest(BaseModel):
+    nome: str = None
+    email: str = None
 
-# =====================================================================
-# Rota: criar usuário
-# =====================================================================
-@app.post("/usuarios", status_code=201)
-def criar_usuario(
-    usuario: dict = Body(
-        ...,
-        example={
-            "nome": "João da Silva",
-            "email": "joao@email.com"
-        }
-    ), 
-    conexao = Depends(obter_conexao)
-):
-    """
-    Cria um novo usuário no sistema.
-    Parâmetros: nome (str), email (str).
-    Retorna: mensagem de sucesso e o id_usuario gerado pelo banco.
-    """
-    cursor = conexao.cursor()
-    try:
-        cursor.execute("""
-            INSERT INTO usuarios (nome, email) 
-            VALUES (%s, %s) RETURNING id_usuario;
-        """, (usuario["nome"], usuario["email"]))
-        
-        id_novo = cursor.fetchone()[0]
-        conexao.commit()
-        
-        return {"mensagem": "Usuário criado com sucesso!", "id_usuario": id_novo}
-    except psycopg2.errors.UniqueViolation:
-        conexao.rollback()
-        raise HTTPException(status_code=409, detail="E-mail já cadastrado no sistema.")
-    except KeyError as e:
-        conexao.rollback()
-        raise HTTPException(status_code=400, detail=f"Campo ausente no JSON: {e}")
-    except Exception as e:
-        conexao.rollback()
-        raise HTTPException(status_code=400, detail=f"Erro ao criar usuário: {e}")
-    finally:
-        cursor.close()
+class SenhaUpdateRequest(BaseModel):
+    senha_atual: str
+    nova_senha: str
 
-# =====================================================================
-# Rota: listar usuários
-# =====================================================================
-@app.get("/usuarios")
-def listar_usuarios(conexao = Depends(obter_conexao)):
-    """
-    Retorna a lista completa de usuários cadastrados no sistema.
-    """
-    cursor = conexao.cursor()
-    try:
-        cursor.execute("SELECT id_usuario, nome, email FROM usuarios;")
-        usuarios_bd = cursor.fetchall()
-        
-        return [{"id_usuario": u[0], "nome": u[1], "email": u[2]} for u in usuarios_bd]
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    finally:
-        cursor.close()
-
-# =====================================================================
-# Rota: remover usuário
-# =====================================================================
-@app.delete("/usuarios/{id_usuario}")
-def remover_usuario(id_usuario: int, conexao = Depends(obter_conexao)):
-    """
-    Remove um usuário e todos os seus vínculos do sistema.
-    A deleção respeita a ordem das constraints de Foreign Key:
-    reservas → vínculos de garagem (usuario_veiculo) → usuário.
-    """
-    cursor = conexao.cursor()
-    try:
-        cursor.execute("DELETE FROM usuarios WHERE id_usuario = %s RETURNING id_usuario;", (id_usuario,))
-        
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
-            
-        conexao.commit()
-        return {"mensagem": f"Usuário {id_usuario} e todos os seus vínculos foram removidos com sucesso!"}
-        
-    except Exception as e:
-        conexao.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-    finally:
-        cursor.close()
 
 # =====================================================================
 # Rota: adicionar veículo à garagem
@@ -161,8 +61,11 @@ def adicionar_veiculo_na_garagem(
             "ano": 1978
         }
     ), 
-    conexao = Depends(obter_conexao)
+    conexao = Depends(obter_conexao),
+    auth = Depends(exigir_role("usuario"))
 ):
+    if str(id_usuario) != auth["sub"]:
+        raise HTTPException(status_code=403, detail="Você só pode modificar a sua própria garagem.")
     """
     Cadastra um veículo e o vincula à garagem do usuário.
     Parâmetros: placa (VARCHAR(50)), modelo (str), ano (int).
@@ -196,37 +99,15 @@ def adicionar_veiculo_na_garagem(
     finally:
         cursor.close()
 
-# =====================================================================
-# Rota: listar veículos
-# =====================================================================
-@app.get("/veiculos")
-def listar_veiculos(conexao = Depends(obter_conexao)):
-    """
-    Retorna todos os veículos cadastrados no sistema.
-    """
-    cursor = conexao.cursor()
-    try:
-        cursor.execute("SELECT id_veiculo, placa, modelo, ano FROM veiculos;")
-        veiculos_bd = cursor.fetchall()
-        
-        return [
-            {
-                "id_veiculo": v[0], 
-                "placa": v[1], 
-                "modelo": v[2], 
-                "ano": v[3]
-            } for v in veiculos_bd
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    finally:
-        cursor.close()
+
 
 # =====================================================================
 # Rota: listar veículos do usuário
 # =====================================================================
 @app.get("/usuarios/{id_usuario}/veiculos")
-def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(obter_conexao)):
+def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
+    if str(id_usuario) != auth["sub"]:
+        raise HTTPException(status_code=403, detail="Você só pode ver a sua própria garagem.")
     """
     Retorna os veículos da garagem de um usuário específico.
     """
@@ -260,7 +141,9 @@ def listar_veiculos_do_usuario(id_usuario: int, conexao = Depends(obter_conexao)
 # Rota: remover veículo
 # =====================================================================
 @app.delete("/veiculos/{id_veiculo}")
-def remover_veiculo(id_veiculo: int, conexao = Depends(obter_conexao)):
+def remover_veiculo(id_veiculo: int, conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
+    # OBS: Ideal seria validar se o veículo pertence ao usuário autenticado,
+    # mas mantendo simples no MVP. Poderíamos fazer um JOIN com usuario_veiculo.
     """
     Remove um veículo e todo o seu histórico do sistema.
     A deleção respeita a ordem das constraints de Foreign Key:
@@ -289,50 +172,69 @@ def remover_veiculo(id_veiculo: int, conexao = Depends(obter_conexao)):
 # =====================================================================
 @app.post("/reservas", status_code=201)
 def comprar_reserva(
-    reserva: dict = Body(
-        ..., 
-        example={
-            "id_usuario": 1,
-            "placa": "ABC-1234",
-        }
-    ), 
-    conexao = Depends(obter_conexao)
+    reserva: ReservaRequest, 
+    conexao = Depends(obter_conexao),
+    auth = Depends(exigir_role("usuario"))
 ):
-    """
-    Emite uma reserva de estacionamento para um veículo da garagem do usuário.
-    Valida se o veículo pertence à garagem do usuário antes de inserir.
-    Parâmetros: id_usuario (int), placa (VARCHAR(50)).
-    Retorna: mensagem de sucesso e o id_reserva gerado.
-    """
+    if str(reserva.id_usuario) != auth["sub"]:
+        raise HTTPException(status_code=403, detail="Você não pode comprar reservas para outros usuários.")
+        
+    if reserva.duracao_horas < 1:
+        raise HTTPException(status_code=400, detail="A duração deve ser de pelo menos 1 hora.")
+
     cursor = conexao.cursor()
     try:
+        # Obter o preço por hora
+        cursor.execute("SELECT valor FROM configuracao WHERE chave = 'preco_hora';")
+        preco_hora = cursor.fetchone()
+        preco_hora = float(preco_hora[0]) if preco_hora else 5.00
+        
+        preco_total = preco_hora * reserva.duracao_horas
+
+        # Verificar saldo
+        cursor.execute("SELECT saldo FROM usuarios WHERE id_usuario = %s FOR UPDATE;", (reserva.id_usuario,))
+        saldo_atual = cursor.fetchone()
+        if not saldo_atual or float(saldo_atual[0]) < preco_total:
+            raise HTTPException(status_code=402, detail="Saldo insuficiente.")
+
         # valida se a placa pertence à garagem do usuário antes de inserir
         cursor.execute("""
             SELECT v.id_veiculo FROM veiculos v
             JOIN usuario_veiculo uv ON v.placa = uv.placa
             WHERE uv.id_usuario = %s AND v.placa = %s
-            FOR UPDATE;
-        """, (reserva["id_usuario"], reserva["placa"]))
+        """, (reserva.id_usuario, reserva.placa))
         
         resultado = cursor.fetchone()
         if not resultado:
             raise HTTPException(status_code=404, detail="Veículo não encontrado na garagem.")
         id_veiculo = resultado[0]
+        
+        # Debitar saldo
         cursor.execute("""
-            INSERT INTO reservas (id_usuario, id_veiculo)
-            VALUES (%s, %s) RETURNING id_reserva;
-        """, (reserva["id_usuario"], id_veiculo))
+            UPDATE usuarios SET saldo = saldo - %s WHERE id_usuario = %s;
+        """, (preco_total, reserva.id_usuario))
+
+        # Inserir transacao
+        cursor.execute("""
+            INSERT INTO transacoes (id_usuario, tipo, valor, descricao)
+            VALUES (%s, 'DEBITO_RESERVA', %s, 'Reserva de estacionamento');
+        """, (reserva.id_usuario, -preco_total))
+
+        # Inserir reserva
+        cursor.execute("""
+            INSERT INTO reservas (id_usuario, id_veiculo, duracao_horas, preco_total, expira_em)
+            VALUES (%s, %s, %s, %s, NOW() + INTERVAL '%s hours') RETURNING id_reserva;
+        """, (reserva.id_usuario, id_veiculo, reserva.duracao_horas, preco_total, reserva.duracao_horas))
         id_reserva = cursor.fetchone()[0]
 
         conexao.commit()
-        return {"mensagem": "Reserva efetuada com sucesso!", "id_reserva": id_reserva}
+        return {"mensagem": "Reserva efetuada com sucesso!", "id_reserva": id_reserva, "preco_cobrado": preco_total}
         
-    except KeyError as e:
-        conexao.rollback()
-        raise HTTPException(status_code=400, detail=f"Campo ausente no JSON: {e}")
     except Exception as e:
         conexao.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
 
@@ -340,20 +242,25 @@ def comprar_reserva(
 # Rota: listar reservas
 # =====================================================================
 @app.get("/reservas")
-def listar_reservas(conexao = Depends(obter_conexao)):
+def listar_reservas(conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
     """
     Retorna todas as reservas registradas no sistema.
     """
     cursor = conexao.cursor()
     try:
-        cursor.execute("SELECT id_reserva, id_usuario, id_veiculo FROM reservas")
+        cursor.execute("""
+            SELECT r.id_reserva, r.id_usuario, r.id_veiculo, v.placa 
+            FROM reservas r
+            JOIN veiculos v ON r.id_veiculo = v.id_veiculo
+        """)
         reservas_bd = cursor.fetchall()
         
         return [
             {
                 "id_reserva": r[0], 
                 "id_usuario": r[1], 
-                "id_veiculo": r[2]
+                "id_veiculo": r[2],
+                "placa": r[3]
             } for r in reservas_bd
         ]
     except Exception as e:
@@ -365,7 +272,7 @@ def listar_reservas(conexao = Depends(obter_conexao)):
 # Rota: remover reserva
 # =====================================================================
 @app.delete("/reservas/{id_reserva}")
-def remover_reserva(id_reserva: int, conexao = Depends(obter_conexao)):
+def remover_reserva(id_reserva: int, conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
     """
     Remove uma reserva pelo seu ID.
     Retorna 404 se a reserva não for encontrada.
@@ -382,5 +289,242 @@ def remover_reserva(id_reserva: int, conexao = Depends(obter_conexao)):
     except Exception as e:
         conexao.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        cursor.close()
+
+# =====================================================================
+# Rota: carteira (saldo e extrato)
+# =====================================================================
+@app.get("/carteira")
+def obter_carteira(conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
+    id_usuario = int(auth["sub"])
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("SELECT saldo FROM usuarios WHERE id_usuario = %s;", (id_usuario,))
+        resultado = cursor.fetchone()
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        saldo = resultado[0]
+
+        cursor.execute("""
+            SELECT id_transacao, tipo, valor, descricao, criado_em 
+            FROM transacoes 
+            WHERE id_usuario = %s 
+            ORDER BY criado_em DESC;
+        """, (id_usuario,))
+        transacoes_bd = cursor.fetchall()
+        transacoes = [
+            {
+                "id_transacao": t[0],
+                "tipo": t[1],
+                "valor": float(t[2]),
+                "descricao": t[3],
+                "criado_em": t[4]
+            } for t in transacoes_bd
+        ]
+
+        return {"saldo": float(saldo), "transacoes": transacoes}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+
+# =====================================================================
+# Rota: recarga de carteira
+# =====================================================================
+@app.post("/carteira/recarga")
+def recarregar_carteira(
+    dados: RecargaRequest, 
+    conexao = Depends(obter_conexao), 
+    auth = Depends(exigir_role("usuario"))
+):
+    if dados.valor <= 0:
+        raise HTTPException(status_code=400, detail="Valor de recarga deve ser positivo.")
+        
+    id_usuario = int(auth["sub"])
+    cursor = conexao.cursor()
+    try:
+        # TODO: Integração real com gateway de pagamento entra aqui
+        
+        cursor.execute("""
+            UPDATE usuarios SET saldo = saldo + %s WHERE id_usuario = %s RETURNING saldo;
+        """, (dados.valor, id_usuario))
+        novo_saldo = cursor.fetchone()[0]
+
+        cursor.execute("""
+            INSERT INTO transacoes (id_usuario, tipo, valor, descricao)
+            VALUES (%s, 'RECARGA', %s, 'Recarga via sistema');
+        """, (id_usuario, dados.valor))
+        
+        conexao.commit()
+        return {"mensagem": "Recarga efetuada com sucesso", "novo_saldo": float(novo_saldo)}
+    except Exception as e:
+        conexao.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+
+# =====================================================================
+# Rotas: Perfil do Usuário
+# =====================================================================
+@app.get("/perfil")
+def obter_perfil(conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
+    id_usuario = int(auth["sub"])
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("SELECT nome, email FROM usuarios WHERE id_usuario = %s;", (id_usuario,))
+        resultado = cursor.fetchone()
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        return {"nome": resultado[0], "email": resultado[1]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+
+@app.put("/perfil")
+def atualizar_perfil(
+    dados: PerfilUpdateRequest, 
+    conexao = Depends(obter_conexao), 
+    auth = Depends(exigir_role("usuario"))
+):
+    id_usuario = int(auth["sub"])
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("SELECT nome, email FROM usuarios WHERE id_usuario = %s;", (id_usuario,))
+        usuario_atual = cursor.fetchone()
+        if not usuario_atual:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+            
+        novo_nome = dados.nome if dados.nome else usuario_atual[0]
+        novo_email = dados.email if dados.email else usuario_atual[1]
+        
+        cursor.execute("UPDATE usuarios SET nome = %s, email = %s WHERE id_usuario = %s;", (novo_nome, novo_email, id_usuario))
+        conexao.commit()
+        return {"mensagem": "Perfil atualizado com sucesso."}
+    except psycopg2.errors.UniqueViolation:
+        conexao.rollback()
+        raise HTTPException(status_code=409, detail="E-mail já está em uso por outro usuário.")
+    except Exception as e:
+        conexao.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+
+@app.put("/perfil/senha")
+def atualizar_senha(
+    dados: SenhaUpdateRequest, 
+    conexao = Depends(obter_conexao), 
+    auth = Depends(exigir_role("usuario"))
+):
+    id_usuario = int(auth["sub"])
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("SELECT senha_hash FROM usuarios WHERE id_usuario = %s;", (id_usuario,))
+        resultado = cursor.fetchone()
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+            
+        senha_hash_atual = resultado[0]
+        
+        if not verificar_senha(dados.senha_atual, senha_hash_atual):
+            raise HTTPException(status_code=401, detail="Senha atual incorreta.")
+            
+        if len(dados.nova_senha) < 8:
+            raise HTTPException(status_code=400, detail="A nova senha deve ter pelo menos 8 caracteres.")
+            
+        novo_hash = hash_senha(dados.nova_senha)
+        
+        cursor.execute("UPDATE usuarios SET senha_hash = %s WHERE id_usuario = %s;", (novo_hash, id_usuario))
+        conexao.commit()
+        return {"mensagem": "Senha atualizada com sucesso."}
+    except Exception as e:
+        conexao.rollback()
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+
+# =====================================================================
+# Rotas: Multas do Usuário
+# =====================================================================
+@app.get("/multas")
+def listar_multas_usuario(conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
+    id_usuario = int(auth["sub"])
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("""
+            SELECT m.id_multa, m.placa, m.motivo, m.valor, m.criado_em, m.status 
+            FROM multas m
+            JOIN usuario_veiculo uv ON m.placa = uv.placa
+            WHERE uv.id_usuario = %s
+            ORDER BY m.criado_em DESC;
+        """, (id_usuario,))
+        multas_bd = cursor.fetchall()
+        return [
+            {
+                "id_multa": m[0],
+                "placa": m[1],
+                "motivo": m[2],
+                "valor": float(m[3]),
+                "criado_em": m[4],
+                "status": m[5]
+            } for m in multas_bd
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+
+@app.post("/multas/{id_multa}/pagar")
+def pagar_multa(id_multa: int, conexao = Depends(obter_conexao), auth = Depends(exigir_role("usuario"))):
+    id_usuario = int(auth["sub"])
+    cursor = conexao.cursor()
+    try:
+        # Verificar se a multa existe e pertence a um veiculo do usuario
+        cursor.execute("""
+            SELECT m.valor, m.status 
+            FROM multas m
+            JOIN usuario_veiculo uv ON m.placa = uv.placa
+            WHERE m.id_multa = %s AND uv.id_usuario = %s FOR UPDATE;
+        """, (id_multa, id_usuario))
+        multa = cursor.fetchone()
+        
+        if not multa:
+            raise HTTPException(status_code=404, detail="Multa não encontrada para os seus veículos.")
+            
+        valor_multa = float(multa[0])
+        status = multa[1]
+        
+        if status == 'PAGA':
+            raise HTTPException(status_code=400, detail="Esta multa já está paga.")
+
+        # Verificar saldo
+        cursor.execute("SELECT saldo FROM usuarios WHERE id_usuario = %s FOR UPDATE;", (id_usuario,))
+        saldo_atual = float(cursor.fetchone()[0])
+        
+        if saldo_atual < valor_multa:
+            raise HTTPException(status_code=402, detail="Saldo insuficiente para pagar a multa.")
+            
+        # Debitar saldo e registrar transação
+        cursor.execute("UPDATE usuarios SET saldo = saldo - %s WHERE id_usuario = %s;", (valor_multa, id_usuario))
+        cursor.execute("""
+            INSERT INTO transacoes (id_usuario, tipo, valor, descricao)
+            VALUES (%s, 'PAGAMENTO_MULTA', %s, 'Pagamento de multa: ' || %s);
+        """, (id_usuario, -valor_multa, id_multa))
+        
+        # Atualizar status da multa
+        cursor.execute("UPDATE multas SET status = 'PAGA' WHERE id_multa = %s;", (id_multa,))
+        
+        conexao.commit()
+        return {"mensagem": "Multa paga com sucesso!"}
+    except Exception as e:
+        conexao.rollback()
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()

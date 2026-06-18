@@ -1,9 +1,7 @@
-# 1. Criação do Bucket S3
 resource "aws_s3_bucket" "frontend_zona_azul" {
   bucket = "zona-azul-frontend-cloud-computing-unifei" 
 }
 
-# 2. Configura o bucket para hospedar um site estático
 resource "aws_s3_bucket_website_configuration" "frontend_site" {
   bucket = aws_s3_bucket.frontend_zona_azul.id
 
@@ -12,7 +10,7 @@ resource "aws_s3_bucket_website_configuration" "frontend_site" {
   }
 }
 
-# 3. Desbloqueia as travas de segurança originais da AWS (Necessário para sites públicos)
+# Desbloqueio das travas de segurança originais da AWS (Necessário para sites públicos)
 resource "aws_s3_bucket_public_access_block" "frontend_acesso" {
   bucket = aws_s3_bucket.frontend_zona_azul.id
 
